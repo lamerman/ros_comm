@@ -48,6 +48,7 @@ from catkin.find_in_workspaces import find_in_workspaces
 
 import rospkg
 import genmsg
+from genpy.dynamic import generate_dynamic
 
 import roslib.message
 import rosbag
@@ -596,6 +597,7 @@ def rosmsg_cmd_show(mode, full, alias='show'):
         parser.error(cmd+" does not understand C++-style namespaces (i.e. '::').\nPlease refer to msg/srv types as 'package_name/Type'.")
     elif '.' in arg:
         parser.error("invalid message type '%s'.\nPlease refer to msg/srv types as 'package_name/Type'." % arg)
+    rospack = rospkg.RosPack()
     if options.bag:
         bag_file = options.bag
         if not os.path.exists(bag_file):
@@ -603,10 +605,16 @@ def rosmsg_cmd_show(mode, full, alias='show'):
         for topic, msg, t in rosbag.Bag(bag_file).read_messages(raw=True):
             datatype, _, _, _, pytype = msg
             if datatype == arg:
-                print(get_msg_text(datatype, options.raw, pytype._full_text))
+                if options.raw:
+                    print(pytype._full_text)
+                else:
+                    context = genmsg.MsgContext.create_default()
+                    msgs = generate_dynamic(datatype, pytype._full_text)
+                    for t, msg in msgs.items():
+                        context.register(t, msg._spec)
+                    print(spec_to_str(context, msgs[datatype]._spec))
                 break
     else:
-        rospack = rospkg.RosPack()
         if '/' in arg: #package specified
             rosmsg_debug(rospack, mode, arg, options.raw)
         else:
